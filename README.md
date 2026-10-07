@@ -70,7 +70,7 @@ The first run downloads the model from Hugging Face (about 1.1 GB). Your browser
 
 ## Recommended settings
 
-The defaults come from a blind test. LibraMind Mini answered 31 everyday conversations: small talk, advice, explanations, creative requests, practical tasks, opinions and multi-turn chats. It did so under 22 sampling settings and 8 system prompts. Grok 4.7 then scored every reply 1–10 without knowing which setting produced it.
+The defaults come from a blind test. LibraMind Mini answered 31 everyday conversations: small talk, advice, explanations, creative requests, practical tasks, opinions and multi-turn chats. It did so under 22 sampling settings and 8 system prompts. Then the samples were scored every reply 1–10 without knowing which setting produced it.
 
 - **Sampling: temperature 0.4, top-p 0.9, repetition penalty 1.1.**
   - Temperature 1.0 was clearly worse.
