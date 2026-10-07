@@ -1,0 +1,11 @@
+# 1. Install PyTorch with CUDA first, following https://pytorch.org/get-started/locally/
+#    (tested with PyTorch 2.14 + CUDA 13.0 on Windows 11 and an RTX 4090)
+# 2. Then: pip install -r requirements.txt
+flash-linear-attention==0.5.2
+triton-windows; sys_platform == "win32"
+safetensors
+tokenizers
+llguidance
+transformers
+huggingface_hub
+numpy
