@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LibraMind Math Chat</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --ring: rgba(11,11,11,0.10); --accent: #2a78d6; --accent-wash: rgba(42,120,214,0.12);
+    --user: #eceae4; --bad: #c0362c; --bad-wash: rgba(192,54,44,0.10); --code: #f1f0ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --ring: rgba(255,255,255,0.10); --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+      --user: #262624; --bad: #e66767; --bad-wash: rgba(230,103,103,0.12); --code: #121211;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --ring: rgba(255,255,255,0.10); --accent: #3987e5; --accent-wash: rgba(57,135,229,0.16);
+    --user: #262624; --bad: #e66767; --bad-wash: rgba(230,103,103,0.12); --code: #121211;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; overflow: hidden; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 16px;
+           border-bottom: 1px solid var(--ring); background: var(--surface); }
+  h1 { font-size: 18px; font-weight: 650; margin: 0 4px 0 0; letter-spacing: -0.01em; }
+  .model-info { color: var(--ink-2); }
+  .spacer { flex: 1; }
+  select, button, textarea, input { font: inherit; color: var(--ink); }
+  select, button, input[type=text] { background: var(--surface); border: 1px solid var(--ring); border-radius: 8px; padding: 5px 11px; }
+  button { cursor: pointer; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+  button.quiet { border-color: transparent; background: transparent; color: var(--ink-2); padding: 3px 8px; }
+  button.quiet:hover:not(:disabled) { background: var(--accent-wash); color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 14px; padding: 14px 16px; }
+  aside { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: auto; padding-bottom: 2px; }
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; min-width: 0; }
+  .card h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  .card-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  textarea { width: 100%; resize: vertical; background: var(--page); border: 1px solid var(--ring); border-radius: 8px;
+             padding: 9px 11px; line-height: 1.5; }
+  #system { min-height: 150px; height: 190px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip { font-size: 12.5px; padding: 3px 10px; color: var(--ink-2); border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+  .chip.on { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 2px var(--accent-wash); }
+  .chip .x { color: var(--muted); padding-left: 2px; }
+  .chip .x:hover { color: var(--bad); }
+  .row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .row input[type=text] { flex: 1; min-width: 0; padding: 4px 9px; }
+  .setting { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; margin-top: 10px; }
+  .setting label { color: var(--ink-2); }
+  .setting .val { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 3.2em; text-align: right; }
+  .setting input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 2px 0 0; }
+  .setting .hint { grid-column: 1 / -1; }
+  .seg { display: inline-flex; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 4px 12px; color: var(--ink-2); }
+  .seg button.on { background: var(--ink); color: var(--surface); }
+
+  .chat { display: flex; flex-direction: column; min-height: 0; padding: 0; overflow: hidden; }
+  #log { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 16px 8px; scroll-behavior: auto; }
+  .thread { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  .msg { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .msg.user { align-items: flex-end; }
+  .who { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+  .bubble { padding: 9px 13px; border-radius: 14px; overflow-wrap: anywhere; white-space: pre-wrap; max-width: 100%; }
+  .user .bubble { background: var(--user); border-bottom-right-radius: 4px; max-width: 85%; }
+  .assistant .bubble { padding-left: 0; padding-right: 0; }
+  .bubble pre { white-space: pre; overflow-x: auto; background: var(--code); border: 1px solid var(--ring); border-radius: 8px;
+                padding: 9px 11px; margin: 6px 0; font: 12.5px/1.45 ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .bubble code { font: 0.92em ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--code); border-radius: 4px; padding: 0 3px; }
+  .bubble pre code { background: none; padding: 0; }
+  .cursor::after { content: "▍"; color: var(--accent); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; color: var(--muted); font-size: 12.5px; min-height: 24px; }
+  .meta .dot::before { content: "·"; padding: 0 2px; }
+  .calcs { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 2px; }
+  .calc { font: 12.5px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace; background: var(--accent-wash);
+          color: var(--ink); border-radius: 6px; padding: 3px 8px; }
+  .calc::before { content: "calc  "; color: var(--accent); font-weight: 600; }
+  .calc.bad { background: var(--bad-wash); }
+  .calc.bad::before { color: var(--bad); }
+  .note { align-self: center; color: var(--muted); font-size: 12.5px; border: 1px dashed var(--ring); border-radius: 999px; padding: 2px 12px; }
+  .error-box { color: var(--bad); background: var(--bad-wash); border-radius: 8px; padding: 8px 12px; }
+  .edit-box { width: min(560px, 100%); }
+  .edit-box textarea { min-height: 70px; }
+  .edit-box .row { justify-content: flex-end; margin-top: 6px; }
+
+  .empty { max-width: 560px; margin: 8vh auto 0; text-align: center; color: var(--ink-2); }
+  .empty h2 { font-size: 22px; color: var(--ink); margin: 0 0 6px; font-weight: 650; letter-spacing: -0.01em; }
+  .empty .chips { justify-content: center; margin-top: 16px; }
+  .empty .chip { font-size: 13.5px; padding: 6px 13px; }
+
+  .composer { border-top: 1px solid var(--ring); padding: 10px 16px 12px; }
+  .composer-inner { max-width: 780px; margin: 0 auto; }
+  .input-wrap { display: flex; gap: 8px; align-items: flex-end; }
+  #input { min-height: 46px; max-height: 220px; height: 46px; resize: none; font-size: 15px; background: var(--page); }
+  .input-wrap button { height: 46px; padding: 0 18px; flex: none; }
+  .foot { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
+  .foot .warn { color: var(--bad); }
+
+  @media (max-width: 860px) {
+    body { overflow: auto; height: auto; }
+    main { display: flex; flex-direction: column; }
+    aside { overflow: visible; order: 2; }
+    .chat { height: 78vh; order: 1; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>LibraMind Math Chat</h1>
+  <span class="model-info" id="model-info">Loading…</span>
+  <span class="spacer"></span>
+  <button id="new-chat" title="Clear the conversation (the system prompt stays)">New chat</button>
+</header>
+
+<main>
+  <aside>
+    <section class="card">
+      <div class="card-head"><h2>Calculator</h2><span class="spacer"></span>
+        <div class="seg" role="group" aria-label="Calculator"><button data-calc="auto">Auto</button><button data-calc="offer">Let it decide</button><button data-calc="off">Off</button></div>
+      </div>
+      <div class="hint" id="calc-hint"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>System prompt</h2><span class="spacer"></span><span class="hint" id="sys-tokens"></span></div>
+      <textarea id="system" spellcheck="true" placeholder="Leave empty for the plain assistant. Or describe a character: who they are, where they live, how they talk, what they know…"></textarea>
+      <div class="hint">Sent with every message. Edit it any time: the next reply follows the new version.</div>
+      <div class="chips" id="presets"></div>
+      <div class="row">
+        <input type="text" id="preset-name" placeholder="Name this prompt…" aria-label="Preset name">
+        <button id="save-preset">Save</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Reply settings</h2><span class="spacer"></span><button class="quiet" id="reset-settings">Defaults</button></div>
+      <div class="setting">
+        <label for="temperature">Creativity (temperature)</label><span class="val" id="temperature-val"></span>
+        <input type="range" id="temperature" min="0" max="1.5" step="0.05">
+        <span class="hint">0 always picks the likeliest word; higher is more varied and more error-prone.</span>
+      </div>
+      <div class="setting">
+        <label for="top_p">Top-p</label><span class="val" id="top_p-val"></span>
+        <input type="range" id="top_p" min="0.5" max="1" step="0.01">
+      </div>
+      <div class="setting">
+        <label for="rep_penalty">Repetition penalty</label><span class="val" id="rep_penalty-val"></span>
+        <input type="range" id="rep_penalty" min="1" max="1.5" step="0.01">
+      </div>
+      <div class="setting">
+        <label for="max_new">Longest reply (tokens)</label><span class="val" id="max_new-val"></span>
+        <input type="range" id="max_new" min="32" max="2048" step="32">
+      </div>
+    </section>
+  </aside>
+
+  <section class="card chat">
+    <div id="log"><div class="thread" id="thread"></div></div>
+    <div class="composer">
+      <div class="composer-inner">
+        <div class="input-wrap">
+          <textarea id="input" placeholder="Message LibraMind…  (Enter to send, Shift+Enter for a new line)" aria-label="Message"></textarea>
+          <button class="primary" id="send">Send</button>
+        </div>
+        <div class="foot"><span id="ctx"></span><span id="foot-note"></span></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const KEY = "libramind-mathchat";
+// defaults chosen in a blind test of 22 settings and 8 system prompts on everyday chats, graded by Grok 4.7
+const DEFAULTS = { temperature: 0.4, top_p: 0.9, rep_penalty: 1.1, max_new: 512 };
+const BUILTIN = [
+  { name: "None", text: "" },
+  { name: "Short answers", text: "Keep your answers short and clear." },
+];
+const SUGGESTIONS = ["What is 347 × 582?", "What is 12% of 50?", "Tom has 37 apples and buys 48 more. How many does he have now?",
+                     "A pizza is cut into 8 slices. If 3 friends each eat 2 slices, how many slices are left?"];
+const CALC_HINTS = { auto: "For math messages: a calculation like 45 + 76 goes to the calculator first; in word problems, every calculation LibraMind writes (like 16 - 3 - 4 =) gets the exact result filled in. Other messages are normal chat.",
+                     offer: "The calculator is offered for math messages and LibraMind decides whether to use it. Mid-conversation it often answers in its head instead, and gets it wrong.",
+                     off: "No calculator: LibraMind does any math in its head (about 23% right on 2-digit arithmetic, under 1% on 3 digits)." };
+
+// ------------------------------------------------------------------ saved state (this browser only)
+let S = { system: BUILTIN[0].text, settings: { ...DEFAULTS }, messages: [], custom: [], calc: "auto" };
+try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) S = { ...S, ...saved, settings: { ...DEFAULTS, ...saved.settings } }; } catch {}
+S.messages = (S.messages || []).filter((m) => !m.pending);
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} }
+
+let status = null, generating = null, editing = null, lastCtx = null;
+
+// ------------------------------------------------------------------ model info
+async function refreshStatus() {
+  try {
+    status = await (await fetch("/api/status")).json();
+  } catch { status = null; $("model-info").textContent = "The chat server isn't running: start it with python mathchat.py"; return; }
+  const i = status.info;
+  $("model-info").textContent = `${i.name} · ${Math.round(i.params / 1e6)}M parameters · ${i.max_len.toLocaleString()}-token memory`;
+  updateFoot();
+}
+
+// ------------------------------------------------------------------ system prompt + presets
+const sys = $("system");
+sys.value = S.system;
+sys.addEventListener("input", () => { S.system = sys.value; save(); renderPresets(); countSystem(); });
+let countTimer = null;
+function countSystem() {
+  clearTimeout(countTimer);
+  countTimer = setTimeout(async () => {
+    if (!S.system.trim()) { $("sys-tokens").textContent = ""; return; }
+    try {
+      const j = await (await fetch("/api/count", { method: "POST", body: JSON.stringify({ system: S.system, messages: [] }) })).json();
+      $("sys-tokens").textContent = j.tokens ? `${j.tokens.toLocaleString()} tokens` : "";
+    } catch {}
+  }, 250);
+}
+function allPresets() { return BUILTIN.concat(S.custom.map((c) => ({ ...c, custom: true }))); }
+function renderPresets() {
+  const box = $("presets"); box.innerHTML = "";
+  for (const p of allPresets()) {
+    const b = document.createElement("button");
+    b.className = "chip" + (p.text === S.system ? " on" : "");
+    b.textContent = p.name;
+    b.title = (p.note ? p.note + "\n\n" : "") + (p.text || "No system prompt");
+    b.onclick = () => {
+      S.system = sys.value = p.text;
+      save(); renderPresets(); countSystem();
+    };
+    if (p.custom) {
+      const x = document.createElement("span");
+      x.className = "x"; x.textContent = "×"; x.title = "Delete this saved prompt";
+      x.onclick = (e) => { e.stopPropagation(); S.custom = S.custom.filter((c) => c.name !== p.name); save(); renderPresets(); };
+      b.appendChild(x);
+    }
+    box.appendChild(b);
+  }
+}
+$("save-preset").onclick = () => {
+  const name = $("preset-name").value.trim();
+  if (!name) { $("preset-name").focus(); return; }
+  S.custom = S.custom.filter((c) => c.name !== name).concat([{ name, text: S.system }]);
+  $("preset-name").value = ""; save(); renderPresets();
+};
+$("preset-name").addEventListener("keydown", (e) => { if (e.key === "Enter") $("save-preset").click(); });
+
+// ------------------------------------------------------------------ settings
+const fmt = { temperature: (v) => v.toFixed(2), top_p: (v) => v.toFixed(2), rep_penalty: (v) => v.toFixed(2), max_new: (v) => String(v) };
+function showSettings() {
+  for (const k of Object.keys(DEFAULTS)) { $(k).value = S.settings[k]; $(k + "-val").textContent = fmt[k](+S.settings[k]); }
+}
+for (const k of Object.keys(DEFAULTS)) {
+  $(k).addEventListener("input", (e) => { S.settings[k] = +e.target.value; $(k + "-val").textContent = fmt[k](S.settings[k]); save(); });
+}
+$("reset-settings").onclick = () => { S.settings = { ...DEFAULTS }; showSettings(); save(); };
+
+// ------------------------------------------------------------------ calculator mode
+function setCalc(mode) {
+  S.calc = CALC_HINTS[mode] ? mode : "auto"; save();
+  document.querySelectorAll("[data-calc]").forEach((b) => b.classList.toggle("on", b.dataset.calc === S.calc));
+  $("calc-hint").textContent = CALC_HINTS[S.calc];
+}
+document.querySelectorAll("[data-calc]").forEach((b) => (b.onclick = () => setCalc(b.dataset.calc)));
+
+// ------------------------------------------------------------------ rendering
+function esc(s) { return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function rich(text) {  // light markdown: ``` code blocks, `code`, **bold**
+  const parts = text.split(/```/);
+  return parts.map((p, i) => {
+    if (i % 2) { const body = p.replace(/^[\w+-]*\n/, ""); return `<pre><code>${esc(body)}</code></pre>`; }
+    return esc(p).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  }).join("");
+}
+
+function render() {
+  const t = $("thread"); t.innerHTML = "";
+  if (!S.messages.length) {
+    t.innerHTML = `<div class="empty"><h2>LibraMind with a calculator</h2>
+      <div>Ask anything with numbers. LibraMind uses the calculator for the arithmetic, and each calculation is shown above its answer.</div>
+      <div class="hint" style="margin-top:6px">The calculator makes the arithmetic exact; setting up a multi-step word problem is still up to LibraMind, and it can get that wrong.</div>
+      <div class="chips"></div></div>`;
+    const chips = t.querySelector(".chips");
+    for (const s of SUGGESTIONS) {
+      const b = document.createElement("button"); b.className = "chip"; b.textContent = s; b.onclick = () => send(s); chips.appendChild(b);
+    }
+    updateFoot(); return;
+  }
+  let prevSystem;
+  S.messages.forEach((m, i) => {
+    if (m.role === "assistant" && prevSystem !== undefined && m.system !== prevSystem) {
+      const n = document.createElement("div"); n.className = "note"; n.textContent = m.system ? "System prompt changed" : "System prompt removed";
+      t.appendChild(n);
+    }
+    if (m.role === "assistant") prevSystem = m.system;
+    t.appendChild(m.role === "user" ? userEl(m, i) : assistantEl(m, i));
+  });
+  updateFoot();
+}
+function userEl(m, i) {
+  const el = document.createElement("div"); el.className = "msg user";
+  if (editing === i) {
+    el.innerHTML = `<div class="edit-box"><textarea></textarea><div class="row"><button class="quiet" data-a="cancel">Cancel</button><button class="primary" data-a="go">Save &amp; resend</button></div></div>`;
+    const ta = el.querySelector("textarea"); ta.value = m.content;
+    el.querySelector('[data-a="cancel"]').onclick = () => { editing = null; render(); };
+    el.querySelector('[data-a="go"]').onclick = () => {
+      if (!ta.value.trim()) return;
+      editing = null; S.messages = S.messages.slice(0, i).concat([{ role: "user", content: ta.value.trim() }]); save(); reply();
+    };
+    ta.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); el.querySelector('[data-a="go"]').click(); } });
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); });
+    return el;
+  }
+  el.innerHTML = `<div class="bubble"></div><div class="meta"><button class="quiet" data-a="edit">Edit</button></div>`;
+  el.querySelector(".bubble").textContent = m.content;
+  const b = el.querySelector('[data-a="edit"]'); b.disabled = !!generating;
+  b.onclick = () => { editing = i; render(); };
+  return el;
+}
+function assistantEl(m, i) {
+  const el = document.createElement("div"); el.className = "msg assistant";
+  const last = i === S.messages.length - 1;
+  el.innerHTML = `<div class="who">LibraMind</div><div class="calcs"></div><div class="bubble"></div><div class="meta"></div>`;
+  fillCalcs(el.querySelector(".calcs"), m);
+  const bubble = el.querySelector(".bubble");
+  if (m.error) { bubble.className = "error-box"; bubble.textContent = m.error; }
+  else fillBubble(bubble, m);
+  const meta = el.querySelector(".meta");
+  if (m.pending) { meta.textContent = "writing…"; return el; }
+  const bits = [];
+  if (m.model) bits.push(m.model);
+  if (m.stats) {
+    if (m.stats.tokens != null) bits.push(`${m.stats.tokens} tokens`);
+    if (m.stats.seconds > 0) bits.push(`${Math.round(m.stats.tokens / m.stats.seconds)} tokens/s`);
+    if (m.stats.reason === "length") bits.push("hit the length limit");
+    if (m.stats.reason === "stopped") bits.push("stopped");
+  }
+  bits.forEach((b, k) => { const s = document.createElement("span"); if (k) s.className = "dot"; s.textContent = b; meta.appendChild(s); });
+  const sp = document.createElement("span"); sp.className = "spacer"; meta.appendChild(sp);
+  if (!m.error) {
+    const c = document.createElement("button"); c.className = "quiet"; c.textContent = "Copy";
+    c.onclick = async () => { try { await navigator.clipboard.writeText(m.content); c.textContent = "Copied"; setTimeout(() => (c.textContent = "Copy"), 1200); } catch {} };
+    meta.appendChild(c);
+  }
+  if (last) {
+    const r = document.createElement("button"); r.className = "quiet"; r.textContent = "Regenerate"; r.disabled = !!generating;
+    r.onclick = () => { S.messages.pop(); save(); reply(); };
+    meta.appendChild(r);
+  }
+  return el;
+}
+function fillBubble(bubble, m) {
+  bubble.innerHTML = rich(m.content);
+  bubble.classList.toggle("cursor", !!m.pending);
+}
+function fillCalcs(box, m) {  // one chip per calculation: "expression = result"
+  box.innerHTML = "";
+  for (const c of m.calcs || []) {
+    const chip = document.createElement("span");
+    chip.className = "calc" + (c.error ? " bad" : "");
+    chip.textContent = c.error ? `${c.expression}  →  can't calculate` : `${c.expression} = ${c.result}`;
+    chip.title = c.error ? c.error : c.inline ? "Calculated exactly while LibraMind was writing (its own guess was replaced)"
+                                              : "Calculated exactly by the calculator tool";
+    box.appendChild(chip);
+  }
+  box.hidden = !(m.calcs || []).length;
+}
+function updateFoot() {
+  const max = status && status.info ? status.info.max_len : null;
+  if (lastCtx && max && S.messages.length) {
+    const pct = lastCtx.used / max;
+    $("ctx").textContent = `Memory used: ${lastCtx.used.toLocaleString()} / ${max.toLocaleString()} tokens`;
+    $("ctx").className = pct > 0.8 ? "warn" : "";
+  } else $("ctx").textContent = "";
+  $("foot-note").textContent = lastCtx && lastCtx.dropped && S.messages.length
+    ? `The oldest ${lastCtx.dropped} message${lastCtx.dropped > 1 ? "s" : ""} no longer fit, so the model can't see ${lastCtx.dropped > 1 ? "them" : "it"}.` : "";
+}
+function scrollDown(force) {
+  const log = $("log");
+  if (force || log.scrollHeight - log.scrollTop - log.clientHeight < 120) log.scrollTop = log.scrollHeight;
+}
+
+// ------------------------------------------------------------------ sending
+function setBusy(busy) {
+  $("send").textContent = generating ? "Stop" : "Send";
+  $("new-chat").disabled = !!generating;
+  $("send").disabled = busy && !generating;
+}
+async function send(text) {
+  text = (text ?? $("input").value).trim();
+  if (!text || generating) return;
+  if (!status || !status.info) { await refreshStatus(); if (!status || !status.info) return; }
+  $("input").value = ""; autosize();
+  S.messages.push({ role: "user", content: text }); save();
+  reply();
+}
+async function reply() {
+  // earlier calculations go back too: the server shows LibraMind its own calculator calls, which keeps it using them
+  const history = S.messages.map((m) => ({ role: m.role, content: m.content, calcs: m.calcs || [] }));
+  const m = { role: "assistant", content: "", pending: true, calcs: [], system: S.system.trim(), model: status && status.info ? status.info.name : "" };
+  S.messages.push(m);
+  const ctrl = new AbortController();
+  generating = ctrl; setBusy(true); render(); scrollDown(true);
+  const bubble = () => $("thread").lastElementChild.querySelector(".bubble");
+  const calcBox = () => $("thread").lastElementChild.querySelector(".calcs");
+  try {
+    const r = await fetch("/api/chat", { method: "POST", signal: ctrl.signal,
+      body: JSON.stringify({ system: S.system, messages: history, ...S.settings, calculator: S.calc }) });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || r.statusText); }
+    const reader = r.body.getReader(), dec = new TextDecoder();
+    let buf = "";
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const ev = JSON.parse(buf.slice(0, nl)); buf = buf.slice(nl + 1);
+        if (ev.start) { lastCtx = { used: ev.prompt_tokens, dropped: ev.dropped }; updateFoot(); }
+        if (ev.calc) { m.calcs.push(ev.calc); fillCalcs(calcBox(), m); scrollDown(); }
+        if (ev.delta) { m.content += ev.delta; fillBubble(bubble(), m); scrollDown(); }
+        if (ev.done) {
+          m.content = ev.text;
+          m.calcs = ev.calcs || [];
+          m.stats = { tokens: ev.tokens, seconds: ev.seconds, reason: ev.reason };
+          lastCtx = { ...lastCtx, used: ev.context };
+        }
+      }
+    }
+    if (!m.stats) throw new Error("The reply ended early (did the chat server stop?).");
+  } catch (err) {
+    if (err.name === "AbortError") {
+      m.stats = { reason: "stopped" };
+      if (!m.content.trim()) S.messages.pop();
+    } else { m.error = "Couldn't get a reply: " + err.message; }
+  }
+  delete m.pending;
+  generating = null; setBusy(false);
+  save(); render(); scrollDown(); $("input").focus();
+}
+$("send").onclick = () => (generating ? generating.abort() : send());
+const input = $("input");
+function autosize() { input.style.height = "46px"; input.style.height = Math.min(input.scrollHeight + 2, 220) + "px"; }
+input.addEventListener("input", autosize);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+});
+$("new-chat").onclick = () => { if (generating) return; S.messages = []; lastCtx = null; editing = null; save(); render(); input.focus(); };
+
+// ------------------------------------------------------------------ start
+showSettings(); setCalc(S.calc); renderPresets(); render(); scrollDown(true);
+refreshStatus().then(countSystem);
+setInterval(() => { if (!generating && document.visibilityState === "visible") refreshStatus(); }, 30000);
+input.focus();
+</script>
+</body>
+</html>

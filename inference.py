@@ -171,10 +171,12 @@ def sample(logits, temperature=0.7, top_p=0.9, top_k=0, recent=None, rep_penalty
 
 @torch.no_grad()
 def generate(model, prompts, max_new=256, temperature=0.7, top_p=0.9, top_k=0, rep_penalty=1.0, stop_ids=(),
-             matchers=None, batch_size=32, vocab=None, on_token=None, cuda_graph=True):
+             matchers=None, batch_size=32, vocab=None, on_token=None, cuda_graph=True, insert=None):
     """Sample continuations for many prompts, `batch_size` at a time. Returns a list of token-id lists.
     matchers: optional per-prompt llguidance matchers (None = unconstrained) that force a grammar.
-    on_token(row_index, token_id): optional callback, e.g. for streaming a single prompt."""
+    on_token(row_index, token_id): optional callback, e.g. for streaming a single prompt.
+    insert(row_index, tokens_so_far): optional callback returning token ids to write next instead of sampling
+    (e.g. an exact calculator result after "12 * 7 ="), or None. Not applied to grammar-forced rows."""
     from llguidance.torch import allocate_token_bitmask, fill_next_token_bitmask
     results = [None] * len(prompts)
     stop = torch.tensor(list(stop_ids) or [-1], device=model.embed.weight.device)
@@ -188,6 +190,7 @@ def generate(model, prompts, max_new=256, temperature=0.7, top_p=0.9, top_k=0, r
         rows_m = [matchers[i] if matchers else None for i in idx]
         bitmask = allocate_token_bitmask(B, logits.size(1)) if any(rows_m) else None
         out = [[] for _ in range(B)]
+        queued = [[] for _ in range(B)]  # tokens from `insert` still to be written
         done = torch.zeros(B, dtype=torch.bool, device=logits.device)
         recent = torch.full((B, 64), -1, dtype=torch.long, device=logits.device)
         graph = _DecodeGraph(model, cache, B) if cuda_graph else None
@@ -200,6 +203,11 @@ def generate(model, prompts, max_new=256, temperature=0.7, top_p=0.9, top_k=0, r
             nxt = sample(logits, temperature, top_p, top_k, recent, rep_penalty, bitmask, vocab)
             nxt = torch.where(done, stop[0].clamp(min=0), nxt)
             toks = nxt.tolist()
+            if any(queued):  # inserted tokens replace what was sampled
+                for r in range(B):
+                    if queued[r] and not done[r]:
+                        toks[r] = queued[r].pop(0)
+                nxt = torch.tensor(toks, dtype=nxt.dtype, device=nxt.device)
             for r in range(B):
                 if done[r]:
                     continue
@@ -213,6 +221,8 @@ def generate(model, prompts, max_new=256, temperature=0.7, top_p=0.9, top_k=0, r
                     on_token(idx[r], toks[r])
                 if rows_m[r] is not None and rows_m[r].is_stopped():
                     done[r] = True
+                elif insert and rows_m[r] is None and not queued[r]:
+                    queued[r] = list(insert(idx[r], out[r]) or [])
             recent = torch.cat([recent[:, 1:], nxt[:, None]], 1)
             if bool(done.all()) or n == max_new - 1:
                 break
